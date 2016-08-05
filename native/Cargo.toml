@@ -1,0 +1,12 @@
+[package]
+name = "fs-tree-diff-rust"
+version = "0.1.0"
+authors = ["Tom Dale <tom@tomdale.net>"]
+license = "MIT"
+
+[lib]
+name = "fs_tree_diff_rust"
+crate-type = ["dylib"]
+
+[dependencies]
+neon = "0.1"

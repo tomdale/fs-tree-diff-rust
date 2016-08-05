@@ -1,0 +1,19 @@
+{
+  "name": "fs-tree-diff-rust",
+  "version": "0.1.0",
+  "description": "",
+  "main": "lib/index.js",
+  "author": "Tom Dale <tom@tomdale.net>",
+  "license": "MIT",
+  "dependencies": {
+    "neon-cli": "^0.1.7"
+  },
+  "scripts": {
+    "install": "neon build",
+    "test": "neon build && mocha"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.0.1"
+  }
+}

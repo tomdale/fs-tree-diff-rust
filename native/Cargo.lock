@@ -1,0 +1,35 @@
+[root]
+name = "fs-tree-diff-rust"
+version = "0.1.0"
+dependencies = [
+ "neon 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "cslice"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "gcc"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "neon"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "cslice 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "neon-sys 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "neon-sys"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "cslice 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gcc 0.3.32 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
