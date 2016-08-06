@@ -10,23 +10,27 @@ struct Entry {
 }
 
 pub struct FSTree {
-    entries: Vec<Entry>
+    entries: Vec<Entry>,
+    size: usize
 }
 
 declare_types! {
     pub class JsFSTree for FSTree {
         init(call) {
             let scope = call.scope;
+            let mut size = 0;
 
             if (call.arguments.len() > 0) {
                 let options = try!(try!(call.arguments.require(scope, 0)).check::<JsObject>());
                 let entries = try!(try!(options.get(scope, "entries")).check::<JsArray>());
+                size = try!(entries.to_vec(scope)).len();
 
                 println!("{}", try!(entries.to_vec(scope)).len());
             }
 
             Ok(FSTree {
-                entries: vec![]
+                entries: vec![],
+                size: size
             })
         }
 
