@@ -1,28 +1,32 @@
-use neon::vm::{Lock, Call, JsResult};
-use neon::js::{JsValue, JsNull, JsFunction, JsString, JsNumber, JsObject, JsArray, Object};
-use neon::js::class::*;
+use neon::scope::Scope;
+use neon::vm::{Lock, Call, FunctionCall, JsResult};
+use neon::js::{JsValue, JsNull, JsFunction, JsString, JsNumber, JsInteger, JsObject, JsArray, Object};
+use neon::js::class::{JsClass, Class};
 use neon::js::error::{JsError, Kind};
 use neon::mem::Handle;
 
-mod entry;
+pub mod entry;
 
-use fs_tree::entry::Entry;
+use fs_tree::entry::{Entry, JsEntry};
 
+#[derive(Clone)]
 pub struct FSTree {
     entries: Vec<Entry>,
     size: f64
 }
 
+#[derive(Debug)]
+struct Command<'a>(&'static str, String, &'a Entry);
+
 impl FSTree {
-    fn calculatePatch(&self, theirs: &Vec<Entry>) {
+    fn calculatePatch<'a>(&'a self, theirs: &'a Vec<Entry>) -> Vec<Command> {
         let ours = &self.entries;
 
-        let operations: Vec<(&str, String, Entry)> = vec![];
+        let mut operations: Vec<Command> = vec![];
+        let mut removals: Vec<Command> = vec![];
 
         let mut i = 0;
         let mut j = 0;
-
-        let mut removals = vec![];
 
         while i < ours.len() && j < theirs.len() {
             let x = &ours[i];
@@ -31,21 +35,68 @@ impl FSTree {
             if x.relative_path.lt(&y.relative_path) {
                 i += 1;
 
+                let command = remove_command(x);
+
                 if x.is_directory {
-                    removals.push(add_command(&x));
+                    removals.push(command);
+                } else {
+                    operations.push(command);
                 }
+            } else if x.relative_path.gt(&y.relative_path) {
+                j += 1;
+                operations.push(add_command(&y))
             } else {
+                if !is_equal(&x, &y) {
+                    let command = update_command(&y);
+
+                    if x.is_directory {
+                        removals.push(command)
+                    } else {
+                        operations.push(command)
+                    }
+                }
+
                 i += 1;
                 j += 1;
             }
         }
 
-        println!("{:?}", operations);
+        while i < ours.len() {
+            removals.push(add_command(&ours[i]));
+            i += 1;
+        }
+
+        while j < theirs.len() {
+            operations.push(add_command(&theirs[j]));
+            j += 1;
+        }
+
+        removals.reverse();
+        operations.append(&mut removals);
+        operations
     }
 }
 
-fn add_command(entry: &Entry) -> (&'static str, String) {
-    ("mkdir", entry.relative_path.clone())
+fn is_equal(entryA: &Entry, entryB: &Entry) -> bool {
+    if entryA.is_directory && entryB.is_directory {
+        return true
+    }
+
+    entryA.relative_path == entryB.relative_path
+}
+
+fn add_command(entry: &Entry) -> Command {
+    let command = if entry.is_directory { "mkdir" } else { "create" };
+    Command(command, entry.relative_path.clone(), entry)
+}
+
+fn remove_command(entry: &Entry) -> Command {
+    let command = if entry.is_directory  { "rmdir" } else { "unlink" };
+    Command(command, entry.relative_path.clone(), entry)
+}
+
+fn update_command(entry: &Entry) -> Command {
+    Command("change", entry.relative_path.clone(), entry)
 }
 
 declare_types! {
@@ -100,20 +151,50 @@ declare_types! {
                 tree.entries.clone()
             });
 
-            call.arguments.this(scope).grab(|tree| {
-                tree.calculatePatch(&theirEntries);
+            let mut this = call.arguments.this(scope);
+
+            let commands: Vec<Command> = this.grab(|tree| {
+                tree.calculatePatch(&theirEntries)
             });
 
-                //let otherTree = try!(otherTree.check::<JsFSTree>());
-
-                //otherTree.grab(|rawOtherTree| {
-                    //Ok(tree.calculatePatch(rawOtherTree.entries))
-                //})
-            //});
-
-            Ok(JsString::new(scope, "hello").unwrap().upcast())
+            to_js_array(scope, commands)
         }
     }
+}
+
+fn to_js_array<'a, S: Scope<'a>>(scope: &mut S, commands: Vec<Command>) -> JsResult<'a, JsValue> {
+    let array: Handle<JsArray> = JsArray::new(scope, commands.len() as u32);
+
+    for i in 0..commands.len() {
+        try!(array.set((i as u32), try!(command_to_js_array(scope, &commands[i]))));
+    }
+
+    Ok(array.upcast())
+}
+
+fn command_to_js_array<'a, S: Scope<'a>>(scope: &mut S, command: &Command) -> JsResult<'a, JsValue> {
+    let array: Handle<JsArray> = JsArray::new(scope, 2);
+    let path = &command.1[..];
+
+    array.set(0, JsString::new(scope, command.0).unwrap());
+    array.set(1, JsString::new(scope, path).unwrap());
+    array.set(2, try!(entry_to_js_entry(scope, command.2)));
+
+    Ok(array.upcast())
+}
+
+fn entry_to_js_entry<'a, S: Scope<'a>>(scope: &mut S, entry: &Entry) -> JsResult<'a, JsEntry> {
+    let js_entry_class = JsEntry::class(scope);
+    let class: Handle<JsClass<JsEntry>> = try!(js_entry_class);
+    let constructor: Handle<JsFunction<JsEntry>> = try!(class.constructor(scope));
+
+    let path = JsString::new(scope, &entry.relative_path).unwrap();
+
+    let mut args: Vec<Handle<JsValue>> = vec![];
+
+    args.push(path.upcast());
+
+    constructor.construct(scope, args)
 }
 
 pub fn from_paths(call: Call) -> JsResult<JsFSTree> {
