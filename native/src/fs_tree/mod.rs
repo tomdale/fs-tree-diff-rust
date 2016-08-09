@@ -13,23 +13,67 @@ pub struct FSTree {
     size: f64
 }
 
+impl FSTree {
+    fn calculatePatch(&self, theirs: &Vec<Entry>) {
+        let ours = &self.entries;
+
+        let operations: Vec<(&str, String, Entry)> = vec![];
+
+        let mut i = 0;
+        let mut j = 0;
+
+        let mut removals = vec![];
+
+        while i < ours.len() && j < theirs.len() {
+            let x = &ours[i];
+            let y = &theirs[j];
+
+            if x.relative_path.lt(&y.relative_path) {
+                i += 1;
+
+                if x.is_directory {
+                    removals.push(add_command(&x));
+                }
+            } else {
+                i += 1;
+                j += 1;
+            }
+        }
+
+        println!("{:?}", operations);
+    }
+}
+
+fn add_command(entry: &Entry) -> (&'static str, String) {
+    ("mkdir", entry.relative_path.clone())
+}
+
 declare_types! {
     pub class JsFSTree for FSTree {
         init(call) {
             let mut size = 0;
+            let mut entries: Vec<Entry> = vec![];
 
             if call.arguments.len() > 0 {
                 let first_arg = try!(call.arguments.require(call.scope, 0));
 
                 if first_arg.is_a::<JsObject>() {
                     let options = try!(first_arg.check::<JsObject>());
-                    let entries = try!(try!(options.get(call.scope, "paths")).check::<JsArray>());
-                    size = try!(entries.to_vec(call.scope)).len();
+                    let jsEntries = try!(try!(try!(options.get(call.scope, "paths")).check::<JsArray>()).to_vec(call.scope));
+                    size = jsEntries.len();
+                    entries = jsEntries.iter().map(|e| {
+                        let path = match e.check::<JsString>() {
+                            Ok(v) => v.value(),
+                            Err(e) => "".to_string()
+                        };
+
+                        Entry::new(path)
+                    }).collect();
                 }
             }
 
             Ok(FSTree {
-                entries: vec![],
+                entries: entries,
                 size: size as f64
             })
         }
@@ -50,6 +94,22 @@ declare_types! {
 
         method calculatePatch(call) {
             let scope = call.scope;
+
+            let otherTree = try!(call.arguments.require(scope, 0));
+            let theirEntries = try!(otherTree.check::<JsFSTree>()).grab(|tree| {
+                tree.entries.clone()
+            });
+
+            call.arguments.this(scope).grab(|tree| {
+                tree.calculatePatch(&theirEntries);
+            });
+
+                //let otherTree = try!(otherTree.check::<JsFSTree>());
+
+                //otherTree.grab(|rawOtherTree| {
+                    //Ok(tree.calculatePatch(rawOtherTree.entries))
+                //})
+            //});
 
             Ok(JsString::new(scope, "hello").unwrap().upcast())
         }
