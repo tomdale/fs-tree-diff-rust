@@ -1,9 +1,5 @@
-use neon::scope::Scope;
-use neon::vm::{Lock, Call, FunctionCall, JsResult};
-use neon::js::{JsValue, JsBoolean, JsNull, JsFunction, JsString, JsNumber, JsInteger, JsObject, JsArray, Object};
-use neon::js::class::*;
-use neon::js::error::{JsError, Kind};
-use neon::mem::Handle;
+use neon::vm::{Lock};
+use neon::js::{JsBoolean, JsString, JsInteger, Object};
 
 #[derive(Clone, Debug)]
 pub struct Entry {
@@ -41,10 +37,10 @@ declare_types! {
             });
 
             let mode = if is_directory { 16877 } else { 0 };
-            this.set("mode", JsInteger::new(scope, mode));
-            this.set("mtime", JsInteger::new(scope, 0));
-            this.set("size", JsInteger::new(scope, 0));
-            this.set("relativePath", JsString::new(scope, &relative_path[..]).unwrap());
+            try!(this.set("mode", JsInteger::new(scope, mode)));
+            try!(this.set("mtime", JsInteger::new(scope, 0)));
+            try!(this.set("size", JsInteger::new(scope, 0)));
+            try!(this.set("relativePath", JsString::new(scope, &relative_path[..]).unwrap()));
 
             Ok(None)
         }

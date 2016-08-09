@@ -1,6 +1,6 @@
 use neon::scope::Scope;
-use neon::vm::{Lock, Call, FunctionCall, JsResult};
-use neon::js::{JsValue, JsNull, JsFunction, JsString, JsNumber, JsInteger, JsObject, JsArray, Object};
+use neon::vm::{Lock, Call, JsResult};
+use neon::js::{JsValue, JsFunction, JsString, JsNumber, JsObject, JsArray, Object};
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{JsError, Kind};
 use neon::mem::Handle;
@@ -19,7 +19,7 @@ pub struct FSTree {
 struct Command<'a>(&'static str, String, &'a Entry);
 
 impl FSTree {
-    fn calculatePatch<'a>(&'a self, theirs: &'a Vec<Entry>) -> Vec<Command> {
+    fn calculate_patch<'a>(&'a self, theirs: &'a Vec<Entry>) -> Vec<Command> {
         let ours = &self.entries;
 
         let mut operations: Vec<Command> = vec![];
@@ -77,12 +77,12 @@ impl FSTree {
     }
 }
 
-fn is_equal(entryA: &Entry, entryB: &Entry) -> bool {
-    if entryA.is_directory && entryB.is_directory {
+fn is_equal(entry_a: &Entry, entry_b: &Entry) -> bool {
+    if entry_a.is_directory && entry_b.is_directory {
         return true
     }
 
-    entryA.relative_path == entryB.relative_path
+    entry_a.relative_path == entry_b.relative_path
 }
 
 fn add_command(entry: &Entry) -> Command {
@@ -110,12 +110,12 @@ declare_types! {
 
                 if first_arg.is_a::<JsObject>() {
                     let options = try!(first_arg.check::<JsObject>());
-                    let jsEntries = try!(try!(try!(options.get(call.scope, "paths")).check::<JsArray>()).to_vec(call.scope));
-                    size = jsEntries.len();
-                    entries = jsEntries.iter().map(|e| {
+                    let js_entries = try!(try!(try!(options.get(call.scope, "paths")).check::<JsArray>()).to_vec(call.scope));
+                    size = js_entries.len();
+                    entries = js_entries.iter().map(|e| {
                         let path = match e.check::<JsString>() {
                             Ok(v) => v.value(),
-                            Err(e) => "".to_string()
+                            Err(_) => "".to_string()
                         };
 
                         Entry::new(path)
@@ -146,15 +146,15 @@ declare_types! {
         method calculatePatch(call) {
             let scope = call.scope;
 
-            let otherTree = try!(call.arguments.require(scope, 0));
-            let theirEntries = try!(otherTree.check::<JsFSTree>()).grab(|tree| {
+            let other_tree = try!(call.arguments.require(scope, 0));
+            let their_entries = try!(other_tree.check::<JsFSTree>()).grab(|tree| {
                 tree.entries.clone()
             });
 
             let mut this = call.arguments.this(scope);
 
             let commands: Vec<Command> = this.grab(|tree| {
-                tree.calculatePatch(&theirEntries)
+                tree.calculate_patch(&their_entries)
             });
 
             to_js_array(scope, commands)
@@ -176,9 +176,9 @@ fn command_to_js_array<'a, S: Scope<'a>>(scope: &mut S, command: &Command) -> Js
     let array: Handle<JsArray> = JsArray::new(scope, 2);
     let path = &command.1[..];
 
-    array.set(0, JsString::new(scope, command.0).unwrap());
-    array.set(1, JsString::new(scope, path).unwrap());
-    array.set(2, try!(entry_to_js_entry(scope, command.2)));
+    try!(array.set(0, JsString::new(scope, command.0).unwrap()));
+    try!(array.set(1, JsString::new(scope, path).unwrap()));
+    try!(array.set(2, try!(entry_to_js_entry(scope, command.2))));
 
     Ok(array.upcast())
 }
@@ -200,18 +200,18 @@ fn entry_to_js_entry<'a, S: Scope<'a>>(scope: &mut S, entry: &Entry) -> JsResult
 pub fn from_paths(call: Call) -> JsResult<JsFSTree> {
     let scope = call.scope;
 
-    let jsPaths = try!(try!(call.arguments.require(scope, 0)).check::<JsArray>());
-    let paths = try!(jsPaths.to_vec(scope));
-    let mut rawPaths: Vec<String> = Vec::with_capacity(paths.len() as usize);
+    let js_paths = try!(try!(call.arguments.require(scope, 0)).check::<JsArray>());
+    let paths = try!(js_paths.to_vec(scope));
+    let mut raw_paths: Vec<String> = Vec::with_capacity(paths.len() as usize);
 
     for p in &paths {
         let path = try!(p.check::<JsString>()).value();
-        rawPaths.push(path);
+        raw_paths.push(path);
     }
 
-    for i in 1..rawPaths.len() {
-        let previous = &rawPaths[i-1];
-        let current = &rawPaths[i];
+    for i in 1..raw_paths.len() {
+        let previous = &raw_paths[i-1];
+        let current = &raw_paths[i];
 
         if previous.lt(current) {
             continue;
@@ -226,7 +226,7 @@ was not. Ensure your input is sorted and has no duplicate paths", i-1, &previous
 
     let options = JsObject::new(scope);
 
-    try!(options.set("paths", jsPaths));
+    try!(options.set("paths", js_paths));
     let mut args: Vec<Handle<JsValue>> = vec![];
 
     args.push(options.upcast());
