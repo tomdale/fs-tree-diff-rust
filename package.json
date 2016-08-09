@@ -10,10 +10,13 @@
   },
   "scripts": {
     "install": "neon build",
-    "test": "neon build && mocha"
+    "test": "neon build && mocha",
+    "benchmark": "neon build && node ./benchmark.js"
   },
   "devDependencies": {
+    "benchmark": "^2.1.1",
     "chai": "^3.5.0",
+    "fs-tree-diff": "^0.5.2",
     "mocha": "^3.0.1"
   }
 }
