@@ -2,6 +2,7 @@
 name = "fs-tree-diff-rust"
 version = "0.1.0"
 dependencies = [
+ "itertools 0.4.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "neon 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -13,6 +14,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "gcc"
 version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "itertools"
+version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]

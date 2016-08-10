@@ -4,6 +4,9 @@ use neon::js::{JsValue, JsFunction, JsString, JsNumber, JsObject, JsArray, Objec
 use neon::js::class::{JsClass, Class};
 use neon::js::error::{JsError, Kind};
 use neon::mem::Handle;
+use itertools::Itertools;
+use std::fmt;
+use std::fmt::Display;
 
 pub mod entry;
 
@@ -79,7 +82,7 @@ impl FSTree {
 
 fn is_equal(entry_a: &Entry, entry_b: &Entry) -> bool {
     if entry_a.is_directory && entry_b.is_directory {
-        return true
+        return true;
     }
 
     entry_a.relative_path == entry_b.relative_path
@@ -232,4 +235,146 @@ was not. Ensure your input is sorted and has no duplicate paths", i-1, &previous
     args.push(options.upcast());
 
     constructor.construct(scope, args)
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+enum FileKind { Dir, File }
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+enum CommandKind {
+    Create(FileKind),
+    Remove(FileKind),
+    Update
+}
+
+impl FileKind {
+    fn from_is_directory(is_directory: bool) -> FileKind {
+        if is_directory { FileKind::Dir }
+        else { FileKind::File }
+    }
+}
+
+impl CommandKind {
+    fn to_str(self) -> &'static str {
+        match self {
+            CommandKind::Create(FileKind::Dir) => "mkdir",
+            CommandKind::Create(FileKind::File) => "create",
+            CommandKind::Remove(FileKind::Dir) => "rmdir",
+            CommandKind::Remove(FileKind::File) => "unlink",
+            CommandKind::Update => "change"
+        }
+    }
+}
+
+struct Cmd<'a> {
+    kind: CommandKind,
+    relative_path: &'a str
+}
+
+impl<'a> Cmd<'a> {
+    fn remove(entry: &'a Entry) -> Cmd<'a> {
+        Cmd {
+            kind: CommandKind::Remove(FileKind::from_is_directory(entry.is_directory)),
+            relative_path: &entry.relative_path
+        }
+    }
+            
+    fn add(entry: &'a Entry) -> Cmd<'a> {
+        Cmd {
+            kind: CommandKind::Create(FileKind::from_is_directory(entry.is_directory)),
+            relative_path: &entry.relative_path
+        }
+    }
+
+    fn update(entry: &'a Entry) -> Cmd<'a> {
+        Cmd {
+            kind: CommandKind::Update,
+            relative_path: &entry.relative_path
+        }
+    }
+}
+
+impl<'a> Display for Cmd<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{\"{}\": \"{}\"}}", self.kind.to_str(), self.relative_path)
+    }
+}
+
+fn calculate_patch<'a>(ours: &'a [Entry], theirs: &'a [Entry]) -> Vec<Cmd<'a>> {
+    let mut operations: Vec<Cmd> = vec![];
+    let mut removals: Vec<Cmd> = vec![];
+
+    let mut i = 0;
+    let mut j = 0;
+
+    while i < ours.len() && j < theirs.len() {
+        let x = &ours[i];
+        let y = &theirs[j];
+
+        if x.relative_path < y.relative_path {
+            i += 1;
+
+            let command = Cmd::remove(x);
+
+            if x.is_directory {
+                removals.push(command);
+            } else {
+                operations.push(command);
+            }
+        } else if x.relative_path > y.relative_path {
+            j += 1;
+            operations.push(Cmd::add(y))
+        } else {
+            if !is_equal(x, y) {
+
+                let command = Cmd::update(y);
+
+                if x.is_directory {
+                    removals.push(command)
+                } else {
+                    operations.push(command)
+                }
+            }
+
+            i += 1;
+            j += 1;
+        }
+    }
+
+    while i < ours.len() {
+        removals.push(Cmd::add(&ours[i]));
+        i += 1;
+    }
+
+    while j < theirs.len() {
+        operations.push(Cmd::add(&theirs[j]));
+        j += 1;
+    }
+
+    removals.reverse();
+    operations.append(&mut removals);
+    operations
+}
+
+
+pub fn calculate_patch_from_paths(call: Call) -> JsResult<JsString> {
+    let scope = call.scope;
+
+    let paths1: String = try!(try!(call.arguments.require(scope, 0)).check::<JsString>()).value();
+    let paths1: Vec<Entry> = paths1.split('\n')
+        .filter(|s| s.len() > 0)
+        .map(|s| Entry::new(s.to_string()))
+        .collect();
+
+    let paths2: String = try!(try!(call.arguments.require(scope, 1)).check::<JsString>()).value();
+    let paths2: Vec<Entry> = paths2
+        .split('\n')
+        .filter(|s| s.len() > 0)
+        .map(|s| Entry::new(s.to_string()))
+        .collect();
+
+    let commands = &calculate_patch(&paths1, &paths2)[..];
+    let result = commands.iter().join(",");
+
+    Ok(JsString::new(scope, &result).unwrap())
 }

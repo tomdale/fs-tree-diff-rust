@@ -6,6 +6,7 @@
   "author": "Tom Dale <tom@tomdale.net>",
   "license": "MIT",
   "dependencies": {
+    "left-pad": "^1.1.1",
     "neon-cli": "^0.1.7"
   },
   "scripts": {
